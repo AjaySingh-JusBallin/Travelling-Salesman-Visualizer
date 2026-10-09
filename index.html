@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TSP Visualizer — Interactive Travelling Salesman Problem Laboratory</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ============ HEADER ============ -->
+  <header class="topbar">
+    <div class="brand">
+      <h1>TSP Visualizer</h1>
+      <p class="tagline">Explore the search space. Understand the complexity.</p>
+    </div>
+    <div class="status-pill" id="status-pill">
+      <span class="dot" id="status-dot"></span>
+      <span id="status-text">Ready</span>
+    </div>
+  </header>
+
+  <!-- ============ MAIN DASHBOARD ============ -->
+  <main class="layout">
+
+    <!-- Graph (centerpiece) -->
+    <section class="panel graph-panel">
+      <div class="panel-head">
+        <h2>Problem Graph</h2>
+        <div class="graph-toggles">
+          <label class="check"><input type="checkbox" id="toggle-labels" checked> <span>Distance labels</span></label>
+          <label class="check"><input type="checkbox" id="toggle-euclid" checked> <span>Auto distances (Euclidean)</span></label>
+        </div>
+      </div>
+      <svg id="graph" viewBox="0 0 1000 620" role="img" aria-label="TSP city graph"></svg>
+      <p class="hint">Drag cities to reposition them. With auto distances on, moving a city recalculates its Euclidean distances.</p>
+      <div class="legend">
+        <span class="legend-item"><span class="swatch sw-city"></span> City</span>
+        <span class="legend-item"><span class="swatch sw-current"></span> Current city / route</span>
+        <span class="legend-item"><span class="swatch sw-best"></span> Best route</span>
+        <span class="legend-item"><span class="swatch sw-pruned"></span> Pruned branch</span>
+        <span class="legend-item"><span class="swatch sw-visited"></span> Explored</span>
+      </div>
+    </section>
+
+    <!-- Control panel -->
+    <aside class="control-panel">
+
+      <div class="panel card">
+        <h3>Cities</h3>
+        <div class="row">
+          <button id="btn-add-city" class="btn">＋ Add City</button>
+          <button id="btn-clear-cities" class="btn btn-ghost">Clear</button>
+        </div>
+        <div class="row">
+          <label class="field-label" for="random-count">Cities</label>
+          <input type="number" id="random-count" min="3" max="12" value="6">
+          <button id="btn-random" class="btn">Generate Random</button>
+        </div>
+        <div class="row">
+          <select id="preset-select" class="select">
+            <option value="">— Choose a preset —</option>
+            <option value="preset4">Small 4-city example</option>
+            <option value="preset6">Medium 6-city example</option>
+            <option value="preset8">8-city example</option>
+            <option value="symmetric">Symmetric example</option>
+            <option value="random">Random example</option>
+          </select>
+          <button id="btn-preset" class="btn">Load Example</button>
+        </div>
+        <p class="hint">Animated visualization supports up to 11 cities. Keep Brute Force at ≤ 10.</p>
+      </div>
+
+      <div class="panel card">
+        <h3>Distance Matrix</h3>
+        <div class="matrix-wrap" id="matrix-wrap">
+          <table id="matrix"></table>
+        </div>
+        <p class="hint">Edit any distance — the symmetric cell updates automatically. Distances must be positive numbers.</p>
+      </div>
+
+      <div class="panel card">
+        <h3>Algorithm</h3>
+        <div class="algo-options" role="radiogroup" aria-label="Algorithm">
+          <label class="algo-option"><input type="radio" name="algo" value="brute" checked>
+            <span class="algo-name">Brute Force</span><span class="algo-tc">O(n!)</span></label>
+          <label class="algo-option"><input type="radio" name="algo" value="heldkarp">
+            <span class="algo-name">Held–Karp (DP)</span><span class="algo-tc">O(n²·2ⁿ)</span></label>
+          <label class="algo-option"><input type="radio" name="algo" value="branchbound">
+            <span class="algo-name">Branch &amp; Bound</span><span class="algo-tc">Exponential*</span></label>
+        </div>
+        <div class="transport">
+          <button id="btn-run" class="btn btn-primary" title="Run">▶ Run</button>
+          <button id="btn-pause" class="btn" title="Pause">⏸ Pause</button>
+          <button id="btn-step" class="btn" title="Next step">⏭ Step</button>
+          <button id="btn-reset-algo" class="btn btn-ghost" title="Reset algorithm">↻ Reset</button>
+        </div>
+        <div class="row speed-row">
+          <label class="field-label" for="speed">Speed</label>
+          <input type="range" id="speed" min="1" max="10" value="5">
+        </div>
+        <div class="row reset-row">
+          <button id="btn-reset-problem" class="btn btn-ghost">Reset Problem</button>
+          <button id="btn-reset-all" class="btn btn-ghost">Reset Everything</button>
+        </div>
+        <div id="notice" class="notice" hidden></div>
+      </div>
+
+    </aside>
+  </main>
+
+  <!-- ============ BOTTOM: ANALYSIS ============ -->
+  <section class="analysis">
+
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="stats" role="tab">Statistics</button>
+      <button class="tab" data-tab="log" role="tab">Algorithm Log</button>
+      <button class="tab" data-tab="complexity" role="tab">Why Does TSP Get Hard?</button>
+      <button class="tab" data-tab="compare" role="tab">Compare Algorithms</button>
+      <button class="tab" data-tab="experiment" role="tab">Experiment</button>
+      <button class="tab" data-tab="how" role="tab">How It Works</button>
+    </nav>
+
+    <!-- STATISTICS -->
+    <div class="tab-page active" id="tab-stats">
+      <div class="stats-grid">
+        <div class="stat"><span class="stat-label">Cities</span><span class="stat-value" id="st-cities">–</span></div>
+        <div class="stat"><span class="stat-label">Best Distance</span><span class="stat-value" id="st-best">–</span></div>
+        <div class="stat"><span class="stat-label">Current Distance</span><span class="stat-value" id="st-current">–</span></div>
+        <div class="stat"><span class="stat-label">States Explored</span><span class="stat-value" id="st-explored">–</span></div>
+        <div class="stat"><span class="stat-label">States Pruned</span><span class="stat-value" id="st-pruned">–</span></div>
+        <div class="stat"><span class="stat-label">Pruning Rate</span><span class="stat-value" id="st-prunerate">–</span></div>
+        <div class="stat"><span class="stat-label">Execution Time</span><span class="stat-value" id="st-time">–</span></div>
+        <div class="stat"><span class="stat-label">Best Route</span><span class="stat-value route" id="st-route">–</span></div>
+      </div>
+      <p class="hint">“States explored” counts one meaningful operation per algorithm: a complete tour for Brute Force,
+        a DP state (mask, city) for Held–Karp, and a search-tree node for Branch &amp; Bound. Theoretical complexity is
+        not the same as measured states — see the comparison tab.</p>
+    </div>
+
+    <!-- LOG -->
+    <div class="tab-page" id="tab-log">
+      <div class="log-head">
+        <h3>Algorithm Log</h3>
+        <button id="btn-clear-log" class="btn btn-ghost btn-small">Clear log</button>
+      </div>
+      <div id="log" class="log" aria-live="polite"></div>
+    </div>
+
+    <!-- COMPLEXITY EXPLORER -->
+    <div class="tab-page" id="tab-complexity">
+      <div class="cx-grid">
+        <div class="panel card">
+          <h3>Tour Explosion</h3>
+          <div class="row">
+            <label class="field-label" for="cx-cities">Cities</label>
+            <input type="range" id="cx-cities" min="4" max="12" value="8">
+            <span class="cx-n" id="cx-n-label">8</span>
+          </div>
+          <p class="cx-formula">Possible tours (fixed start) = <strong>(n − 1)!</strong></p>
+          <table class="cx-table" id="cx-table"></table>
+          <p class="hint">Fixing the starting city avoids counting rotations of the same tour as different tours —
+            they all visit the same cities in the same cyclic order.</p>
+        </div>
+        <div class="panel card">
+          <h3>Growth of Theoretical Operations</h3>
+          <svg id="growth-chart" viewBox="0 0 640 360" role="img" aria-label="Complexity growth chart"></svg>
+          <div class="legend">
+            <span class="legend-item"><span class="swatch" style="background:#e5484d"></span> Brute Force · (n−1)!</span>
+            <span class="legend-item"><span class="swatch" style="background:#3e9b4f"></span> Held–Karp · n²·2ⁿ</span>
+            <span class="legend-item"><span class="swatch" style="background:#8e8e93"></span> Reference · n²</span>
+          </div>
+          <p class="hint">Log-scale y-axis. Move the cities slider to see the exact values at that point.
+            These are <em>theoretical operation counts</em>, not measured run times of this implementation.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPARE -->
+    <div class="tab-page" id="tab-compare">
+      <div class="panel card">
+        <h3>Algorithm Comparison</h3>
+        <table class="cmp-table" id="cmp-table">
+          <thead>
+            <tr><th></th><th>Brute Force</th><th>Held–Karp</th><th>Branch &amp; Bound</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Time complexity</td><td>O(n!)</td><td>O(n²·2ⁿ)</td><td>Exponential*</td></tr>
+            <tr><td>Space complexity</td><td>O(n)</td><td>O(n·2ⁿ)</td><td>O(n)</td></tr>
+            <tr><td>States explored</td><td id="cmp-bf-states">–</td><td id="cmp-hk-states">–</td><td id="cmp-bb-states">–</td></tr>
+            <tr><td>Execution time</td><td id="cmp-bf-time">–</td><td id="cmp-hk-time">–</td><td id="cmp-bb-time">–</td></tr>
+            <tr><td>Best distance</td><td id="cmp-bf-best">–</td><td id="cmp-bh-best">–</td><td id="cmp-bb-best">–</td></tr>
+          </tbody>
+        </table>
+        <p class="hint">* Branch &amp; Bound is exponential in the worst case, but pruning often cuts the
+          explored search space dramatically on real instances. Run each algorithm on the current problem
+          to fill in the measured rows.</p>
+      </div>
+    </div>
+
+    <!-- EXPERIMENT -->
+    <div class="tab-page" id="tab-experiment">
+      <div class="panel card">
+        <h3>Scaling Experiment</h3>
+        <p class="hint">Runs each algorithm on fresh random instances for every city count in the range.
+          Brute Force is capped at 10 cities so the browser stays responsive.</p>
+        <div class="row">
+          <label class="field-label" for="exp-start">From</label>
+          <input type="number" id="exp-start" min="4" max="10" value="4">
+          <label class="field-label" for="exp-end">To</label>
+          <input type="number" id="exp-end" min="4" max="10" value="8">
+          <button id="btn-experiment" class="btn btn-primary">Run Experiment</button>
+          <button id="btn-exp-cancel" class="btn btn-ghost" disabled>Cancel</button>
+        </div>
+        <div class="exp-progress" id="exp-progress" hidden>
+          <div class="exp-bar"><div class="exp-fill" id="exp-fill"></div></div>
+          <span id="exp-status">Running…</span>
+        </div>
+        <table class="exp-table" id="exp-table" hidden>
+          <thead><tr><th>Cities</th><th>Brute Force states</th><th>Held–Karp states</th><th>B&amp;B states</th><th>B&amp;B pruned</th></tr></thead>
+          <tbody id="exp-body"></tbody>
+        </table>
+        <svg id="exp-chart" viewBox="0 0 640 300" role="img" aria-label="Experiment chart" hidden></svg>
+      </div>
+    </div>
+
+    <!-- HOW IT WORKS -->
+    <div class="tab-page" id="tab-how">
+      <div class="how-grid">
+        <article class="panel card">
+          <h3>Brute Force — Why O(n!)?</h3>
+          <p>Fix the starting city (say <strong>A</strong>). Then count the choices for each next city:</p>
+          <ul class="steps">
+            <li>1st choice: <strong>n − 1</strong> cities</li>
+            <li>2nd choice: <strong>n − 2</strong> cities</li>
+            <li>3rd choice: <strong>n − 3</strong> cities</li>
+            <li>…</li>
+            <li>Last choice: <strong>1</strong> city</li>
+          </ul>
+          <p class="formula">(n−1) · (n−2) · … · 1 = (n−1)! possible tours</p>
+          <p>Every tour is generated, evaluated, and compared against the best so far.
+            Nothing is skipped — which is exactly why it becomes impractical so quickly.</p>
+        </article>
+        <article class="panel card">
+          <h3>Held–Karp — Why O(n²·2ⁿ)?</h3>
+          <p>Instead of re-solving the same subproblem many times, Held–Karp memoizes it.
+            A subproblem is a <strong>state</strong>:</p>
+          <p class="formula">dp[mask][i] = cheapest cost to start at A, visit exactly the cities in <em>mask</em>, and end at <em>i</em></p>
+          <ul class="steps">
+            <li>There are <strong>2ⁿ</strong> possible subsets (<em>masks</em>) of cities.</li>
+            <li>For each subset, we consider up to <strong>n</strong> ending cities <em>i</em>.</li>
+            <li>Each state tries transitions from up to <strong>n</strong> previous cities.</li>
+          </ul>
+          <p class="formula">2ⁿ subsets × n endings × n transitions = O(n²·2ⁿ)</p>
+          <p>DP never recomputes a state — repeated work in brute force becomes a single table lookup.</p>
+        </article>
+        <article class="panel card">
+          <h3>Branch &amp; Bound — Why can it be faster?</h3>
+          <p>It explores the same search tree as brute force, but it <strong>prunes</strong> branches
+            that provably cannot beat the best tour found so far.</p>
+          <p>For a partial route it computes a <strong>lower bound</strong>: the cheapest any
+            completion of this route could possibly be. If:</p>
+          <p class="formula">lower bound ≥ current best → <strong>PRUNE</strong></p>
+          <p>The lower bound in this visualizer = <em>cost so far</em> + the cheapest possible way to
+            leave every unvisited city (minimum outgoing edge), plus the cheapest return to the start.
+            No real completion can be cheaper than this, so pruning is always safe.</p>
+          <p><strong>Important:</strong> worst-case complexity is still exponential. Pruning helps on
+            typical instances, but a hostile instance can force it to explore nearly everything.</p>
+        </article>
+      </div>
+    </div>
+
+  </section>
+
+  <footer class="footer">
+    <p>TSP Visualizer · Design and Analysis of Algorithms laboratory · All statistics are measured from the actual implementations.</p>
+  </footer>
+
+  <!-- Scripts load in dependency order; each file attaches to the shared TSP namespace.
+       Plain (non-module) scripts are used on purpose so the app also runs from file:// -->
+  <script src="js/tsp.js"></script>
+  <script src="js/algorithms.js"></script>
+  <script src="js/visualization.js"></script>
+  <script src="js/complexity.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
