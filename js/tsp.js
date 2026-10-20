@@ -147,11 +147,47 @@
 
     /** Build n random cities with Euclidean distances (deterministic for a given seed). */
     randomize(n, seed) {
+      this.generateStructured(n, 'uniform', seed);
+    }
+
+    /**
+     * Generate n cities with a given spatial structure (deterministic for a seed).
+     * structures: uniform | clustered | circular | grid | outliers
+     */
+    generateStructured(n, structure, seed) {
       this.clear();
       const rand = mulberry32(seed === undefined ? (Date.now() % 100000) : seed);
-      for (let i = 0; i < n; i++) {
-        this.addCity(0.10 + rand() * 0.80, 0.10 + rand() * 0.80);
+      const P = (x, y) => [Math.min(0.93, Math.max(0.07, x)), Math.min(0.93, Math.max(0.07, y))];
+      // Box–Muller-ish gaussian from the uniform PRNG
+      const gauss = () => (rand() + rand() + rand() - 1.5) / 1.5;
+      let pts = [];
+      if (structure === 'clustered') {
+        const k = Math.max(2, Math.min(4, Math.round(n / 3)));
+        const centers = [];
+        for (let c = 0; c < k; c++) centers.push([0.2 + rand() * 0.6, 0.2 + rand() * 0.6]);
+        for (let i = 0; i < n; i++) {
+          const c = centers[i % k];
+          pts.push(P(c[0] + gauss() * 0.09, c[1] + gauss() * 0.09));
+        }
+      } else if (structure === 'circular') {
+        for (let i = 0; i < n; i++) {
+          const a = (2 * Math.PI * i) / n + gauss() * 0.08;
+          pts.push(P(0.5 + 0.36 * Math.cos(a), 0.5 + 0.36 * Math.sin(a)));
+        }
+      } else if (structure === 'grid') {
+        const cols = Math.ceil(Math.sqrt(n));
+        for (let i = 0; i < n; i++) {
+          const gx = (i % cols) / Math.max(1, cols - 1), gy = Math.floor(i / cols) / Math.max(1, Math.ceil(n / cols) - 1);
+          pts.push(P(0.15 + gx * 0.7 + gauss() * 0.04, 0.15 + gy * 0.7 + gauss() * 0.04));
+        }
+      } else if (structure === 'outliers') {
+        for (let i = 0; i < n - 2; i++) pts.push(P(0.3 + rand() * 0.3, 0.3 + rand() * 0.3));
+        pts.push(P(0.08 + rand() * 0.05, 0.85 + rand() * 0.05));
+        pts.push(P(0.88 + rand() * 0.05, 0.10 + rand() * 0.05));
+      } else { // uniform
+        for (let i = 0; i < n; i++) pts.push([0.10 + rand() * 0.80, 0.10 + rand() * 0.80]);
       }
+      for (const [x, y] of pts) this.addCity(x, y);
       this.recalcEuclidean();
     }
 

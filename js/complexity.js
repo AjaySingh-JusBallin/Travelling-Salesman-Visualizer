@@ -97,7 +97,12 @@
   const CHART = { w: 640, h: 360, padL: 64, padR: 16, padT: 18, padB: 44 };
   const N_MAX = 12, N_MIN = 2;
 
-  function drawGrowthChart(svg, selectedN) {
+  /**
+   * Draw the theoretical growth chart. Optional `measured` overlays real
+   * data: { algoId: [{ n, v }] } — plotted as markers joined by thin
+   * lines, clearly distinguished from the theoretical curves.
+   */
+  function drawGrowthChart(svg, selectedN, measured) {
     svg.innerHTML = '';
     const { w, h, padL, padR, padT, padB } = CHART;
 
@@ -140,6 +145,23 @@
       el('polyline', attrs, svg);
     }
 
+    // measured overlays (real data — markers + thin connectors)
+    if (measured) {
+      const mColors = { brute: '#e5484d', heldkarp: '#3fb950', branchbound: '#4f9cf9', nearest: '#d29922', twoopt: '#b083f0', mst: '#39c5cf', genetic: '#f778ba', annealing: '#8e8e93' };
+      for (const algoId in measured) {
+        const pts = measured[algoId].filter(p => p.n >= N_MIN && p.n <= N_MAX && p.v > 0);
+        if (!pts.length) continue;
+        const color = mColors[algoId] || '#ffffff';
+        const coords = pts.map(p => x(p.n).toFixed(1) + ',' + y(Math.log10(p.v)).toFixed(1)).join(' ');
+        el('polyline', { points: coords, fill: 'none', stroke: color, 'stroke-width': 1.2, 'stroke-dasharray': '2 3', opacity: 0.9 }, svg);
+        pts.forEach(p => {
+          const c = el('circle', { cx: x(p.n), cy: y(Math.log10(p.v)), r: 3.5, fill: '#0d1117', stroke: color, 'stroke-width': 2 }, svg);
+          c.appendChild(document.createElementNS(SVGNS, 'title')).textContent =
+            'measured · ' + algoId + ' · n=' + p.n + ': ' + formatCount(p.v) + ' states';
+        });
+      }
+    }
+
     // marker at the selected city count + exact values
     if (selectedN >= N_MIN && selectedN <= N_MAX) {
       const cx = x(selectedN);
@@ -164,12 +186,20 @@
   TSP.drawGrowthChart = drawGrowthChart;
 
   /* ---------- experiment bar chart (grouped bars, log y) ---------- */
-  function drawExperimentChart(svg, rows) {
-    // rows: [{ n, brute, heldkarp, bb }] measured states
+  /**
+   * rows: [{ n, <seriesKey>: value, ... }]
+   * series: [{ key, color, name }] — defaults to the three exact algorithms.
+   */
+  function drawExperimentChart(svg, rows, series) {
     svg.innerHTML = '';
     if (!rows.length) return;
+    series = series || [
+      { key: 'brute', color: '#e5484d', name: 'Brute Force' },
+      { key: 'heldkarp', color: '#3fb950', name: 'Held–Karp' },
+      { key: 'bb', color: '#4f9cf9', name: 'B&B' }
+    ];
     const w = 640, h = 300, padL = 64, padR = 16, padT = 18, padB = 44;
-    const all = rows.flatMap(r => [r.brute, r.heldkarp, r.bb].filter(v => v > 0));
+    const all = rows.flatMap(r => series.map(s => r[s.key]).filter(v => v > 0));
     const yMax = Math.ceil(Math.max(...all.map(v => Math.log10(v))) + 0.5);
     const y = v => padT + (1 - (v <= 0 ? 0 : Math.log10(v)) / yMax) * (h - padT - padB);
 
@@ -180,18 +210,13 @@
     }
 
     const groupW = (w - padL - padR) / rows.length;
-    const barW = Math.min(22, groupW / 4);
-    const series = [
-      { key: 'brute', color: '#e5484d', name: 'Brute Force' },
-      { key: 'heldkarp', color: '#3fb950', name: 'Held–Karp' },
-      { key: 'bb', color: '#4f9cf9', name: 'B&B' }
-    ];
+    const barW = Math.min(22, groupW / (series.length + 1));
     rows.forEach((r, gi) => {
       const gx = padL + gi * groupW + groupW / 2;
       series.forEach((s, si) => {
         const v = r[s.key];
         if (!v || v <= 0) return;
-        const bx = gx + (si - 1) * (barW + 3) - barW / 2;
+        const bx = gx + (si - (series.length - 1) / 2) * (barW + 3) - barW / 2;
         const rect = el('rect', { x: bx, y: y(v), width: barW, height: Math.max(2, h - padB - y(v)), fill: s.color, rx: 2 }, svg);
         rect.appendChild(document.createElementNS(SVGNS, 'title')).textContent =
           s.name + ' · n=' + r.n + ': ' + formatCount(v) + ' states';

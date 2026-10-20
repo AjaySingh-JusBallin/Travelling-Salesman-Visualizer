@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TSP Visualizer — Interactive DAA Laboratory</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Ambient aurora background: decorative only. Fixed behind the app
+       (z-index 0), pointer-events none — it can never intercept clicks.
+       See "Ambient aurora background" in style.css. -->
+  <div class="ambient-bg" aria-hidden="true"></div>
+
+  <!-- ============ HEADER ============ -->
+  <header class="topbar">
+    <div class="brand">
+      <h1>TSP Visualizer</h1>
+      <p class="tagline">A Design &amp; Analysis of Algorithms laboratory. Explore the search space. Understand the complexity.</p>
+    </div>
+    <div class="status-pill" id="status-pill">
+      <span class="dot" id="status-dot"></span>
+      <span id="status-text">Ready</span>
+    </div>
+  </header>
+
+  <!-- ============ MAIN LAB: 3-COLUMN WORKSPACE ============ -->
+  <main class="lab">
+
+    <!-- LEFT: live algorithm intelligence -->
+    <aside class="intel" aria-label="Live algorithm intelligence">
+
+      <section class="intel-panel" id="ip-op">
+        <button class="intel-head" aria-expanded="true" data-target="ip-op-body">
+          <span class="intel-title">Current Operation</span>
+          <span class="intel-chev" aria-hidden="true">▾</span>
+        </button>
+        <div class="intel-body" id="ip-op-body">
+          <div class="op-name" id="op-name">No algorithm running</div>
+          <div class="op-badge-row"><span class="op-badge" id="op-badge">idle</span></div>
+          <p class="op-explain" id="op-explain">Choose an algorithm on the right and press <b>Run</b> — every step is explained here as it executes.</p>
+          <table class="kv compact" id="op-vars"></table>
+        </div>
+      </section>
+
+      <section class="intel-panel" id="ip-math">
+        <button class="intel-head" aria-expanded="true" data-target="ip-math-body">
+          <span class="intel-title">Live Mathematical Analysis</span>
+          <span class="intel-chev" aria-hidden="true">▾</span>
+        </button>
+        <div class="intel-body" id="ip-math-body">
+          <div id="live-math"><p class="hint">Select an algorithm to see its complexity analysis.</p></div>
+          <details class="deriv-details">
+            <summary>Full derivation</summary>
+            <div id="live-deriv"></div>
+          </details>
+        </div>
+      </section>
+
+      <section class="intel-panel" id="ip-perf">
+        <button class="intel-head" aria-expanded="true" data-target="ip-perf-body">
+          <span class="intel-title">Performance Monitor</span>
+          <span class="intel-chev" aria-hidden="true">▾</span>
+        </button>
+        <div class="intel-body" id="ip-perf-body">
+          <div class="perf-grid" id="perf-grid"></div>
+        </div>
+      </section>
+
+      <section class="intel-panel" id="ip-pseudo">
+        <button class="intel-head" aria-expanded="true" data-target="ip-pseudo-body">
+          <span class="intel-title">Pseudocode Inspector</span>
+          <span class="intel-chev" aria-hidden="true">▾</span>
+        </button>
+        <div class="intel-body" id="ip-pseudo-body">
+          <div class="pseudo-side-tools">
+            <span id="pseudo-side-algo" class="pseudo-side-algo">—</span>
+            <button id="btn-pseudo-expand" class="btn btn-small btn-ghost" title="Expand pseudocode">⤢ Expand</button>
+          </div>
+          <div id="pseudo-side-box" class="pseudo-side"></div>
+          <table class="kv compact" id="pseudo-side-vars"></table>
+        </div>
+      </section>
+
+    </aside>
+
+    <!-- CENTER: graph + execution toolbar -->
+    <section class="stage">
+
+      <section class="panel graph-panel">
+        <div class="panel-head">
+          <h2>Problem Graph</h2>
+          <div class="graph-toggles">
+            <label class="check"><input type="checkbox" id="toggle-labels" checked> <span>Distance labels</span></label>
+            <label class="check"><input type="checkbox" id="toggle-euclid" checked> <span>Auto distances (Euclidean)</span></label>
+            <button id="btn-zoom-in" class="btn btn-small btn-ghost" title="Zoom in">＋</button>
+            <button id="btn-zoom-out" class="btn btn-small btn-ghost" title="Zoom out">－</button>
+            <button id="btn-zoom-reset" class="btn btn-small btn-ghost" title="Reset view">⟲</button>
+            <button id="btn-fullscreen" class="btn btn-small btn-ghost" title="Full-screen graph">⛶</button>
+          </div>
+        </div>
+        <svg id="graph" viewBox="0 0 1000 620" role="img" aria-label="TSP city graph"></svg>
+        <p class="hint">Drag cities to reposition · scroll to zoom, drag background to pan · double-click empty space to add a city · hover edges/cities for details.</p>
+        <div class="legend">
+          <span class="legend-item"><span class="swatch sw-city"></span> City</span>
+          <span class="legend-item"><span class="swatch sw-current"></span> Current city / route</span>
+          <span class="legend-item"><span class="swatch sw-best"></span> Best route</span>
+          <span class="legend-item"><span class="swatch sw-candidate"></span> Candidate</span>
+          <span class="legend-item"><span class="swatch sw-swap-add"></span> Swap: added</span>
+          <span class="legend-item"><span class="swatch sw-swap-remove"></span> Swap: removed</span>
+          <span class="legend-item"><span class="swatch sw-mst"></span> MST edge</span>
+          <span class="legend-item"><span class="swatch sw-pruned"></span> Pruned branch</span>
+        </div>
+      </section>
+
+      <div class="panel execbar" role="group" aria-label="Execution controls">
+        <div class="exec-buttons">
+          <button id="btn-run" class="btn btn-primary" title="Compute &amp; play (Space)">▶ Run</button>
+          <button id="btn-pause" class="btn" title="Pause (Space)">⏸ Pause</button>
+          <button id="btn-step-back" class="btn" title="Step backward (←)">⏪ Back</button>
+          <button id="btn-step" class="btn" title="Step forward (→)">Step ⏭</button>
+          <button id="btn-jump-end" class="btn" title="Jump to final event">⏩ End</button>
+          <button id="btn-skip" class="btn" title="Skip animation, show result">⤓ Skip</button>
+          <button id="btn-reset-algo" class="btn btn-ghost" title="Reset algorithm">↻ Reset</button>
+        </div>
+        <div class="exec-timeline">
+          <div class="progress-bar timeline-bar"><div class="progress-fill" id="progress-fill"></div></div>
+          <span class="progress-text" id="event-counter">0 / 0</span>
+        </div>
+        <div class="exec-speed">
+          <label class="field-label" for="speed">Speed</label>
+          <input type="range" id="speed" min="0" max="7" value="0" aria-label="Animation speed">
+          <span class="speed-label" id="speed-label">1500 ms/step</span>
+        </div>
+        <div class="compute-wrap" id="compute-wrap" hidden>
+          <div class="progress-bar"><div class="progress-fill" id="compute-fill"></div></div>
+          <span class="progress-text" id="compute-text">Computing…</span>
+          <button id="btn-cancel-compute" class="btn btn-small btn-ghost">Cancel</button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT: problem + algorithm configuration -->
+    <aside class="config" aria-label="Problem and algorithm configuration">
+
+      <div class="panel card">
+        <h3>Algorithm</h3>
+        <div class="algo-options" role="radiogroup" aria-label="Algorithm" id="algo-options"></div>
+        <div id="algo-params" class="algo-params"></div>
+        <div class="row">
+          <button id="btn-run-side" class="btn btn-primary" style="flex:1" title="Compute &amp; play (Space)">▶ Run Algorithm</button>
+        </div>
+        <div class="row reset-row">
+          <button id="btn-reset-problem" class="btn btn-ghost">Reset Problem</button>
+          <button id="btn-reset-all" class="btn btn-ghost">Reset Everything</button>
+        </div>
+        <div id="notice" class="notice" hidden></div>
+      </div>
+
+      <div class="panel card">
+        <h3>Cities</h3>
+        <div class="row">
+          <button id="btn-add-city" class="btn">＋ Add City</button>
+          <button id="btn-remove-city" class="btn btn-ghost">Remove</button>
+          <select id="city-select" class="select" aria-label="Select city"></select>
+        </div>
+        <div class="row">
+          <input type="text" id="city-rename" class="select" maxlength="8" placeholder="New label" aria-label="New city label">
+          <button id="btn-rename-city" class="btn btn-ghost">Rename</button>
+        </div>
+        <div class="row">
+          <button id="btn-undo" class="btn btn-ghost" title="Undo (Ctrl+Z)">↩ Undo</button>
+          <button id="btn-redo" class="btn btn-ghost" title="Redo (Ctrl+Y)">↪ Redo</button>
+          <button id="btn-clear-cities" class="btn btn-ghost">Clear</button>
+        </div>
+        <div class="row">
+          <label class="field-label" for="random-count">Cities</label>
+          <input type="number" id="random-count" min="3" max="11" value="6">
+          <select id="random-structure" class="select" aria-label="Graph structure">
+            <option value="uniform">Uniform random</option>
+            <option value="clustered">Clustered</option>
+            <option value="circular">Circular</option>
+            <option value="grid">Grid</option>
+            <option value="outliers">Outlier-heavy</option>
+          </select>
+        </div>
+        <div class="row">
+          <button id="btn-random" class="btn" style="flex:1">Generate Random</button>
+        </div>
+        <div class="row">
+          <select id="preset-select" class="select">
+            <option value="">— Choose a preset —</option>
+            <option value="preset4">Small 4-city example</option>
+            <option value="preset6">Medium 6-city example</option>
+            <option value="preset8">8-city example</option>
+            <option value="symmetric">Symmetric example</option>
+            <option value="random">Random example</option>
+          </select>
+          <button id="btn-preset" class="btn">Load Example</button>
+        </div>
+        <div class="row">
+          <button id="btn-export-graph" class="btn btn-ghost">Export JSON</button>
+          <button id="btn-import-graph" class="btn btn-ghost">Import JSON</button>
+          <input type="file" id="import-file" accept=".json,application/json" hidden>
+        </div>
+        <p class="hint">Animated visualization supports up to 11 cities. Keep Brute Force at ≤ 10.</p>
+      </div>
+
+      <div class="panel card">
+        <h3>Distance Matrix</h3>
+        <div class="matrix-wrap" id="matrix-wrap">
+          <table id="matrix"></table>
+        </div>
+        <p class="hint">Edit any distance — the symmetric cell updates automatically. Uncheck “Auto distances” first, or dragging a city will overwrite edits with Euclidean values.</p>
+      </div>
+
+    </aside>
+  </main>
+
+  <!-- ============ BOTTOM: ANALYSIS ============ -->
+  <section class="analysis">
+
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="stats" role="tab">Statistics</button>
+      <button class="tab" data-tab="log" role="tab">Algorithm Log</button>
+      <button class="tab" data-tab="pseudo" role="tab">Pseudocode</button>
+      <button class="tab" data-tab="tree" role="tab">Search Tree</button>
+      <button class="tab" data-tab="dp" role="tab">DP Table</button>
+      <button class="tab" data-tab="complexity" role="tab">Complexity Analysis</button>
+      <button class="tab" data-tab="compare" role="tab">Compare Algorithms</button>
+      <button class="tab" data-tab="experiment" role="tab">Experiment Lab</button>
+      <button class="tab" data-tab="learn" role="tab">Learn Mode</button>
+      <button class="tab" data-tab="report" role="tab">Report</button>
+      <button class="tab" data-tab="how" role="tab">How It Works</button>
+    </nav>
+
+    <!-- STATISTICS -->
+    <div class="tab-page active" id="tab-stats">
+      <div class="stats-grid">
+        <div class="stat"><span class="stat-label">Cities</span><span class="stat-value" id="st-cities">–</span></div>
+        <div class="stat"><span class="stat-label">Best Distance</span><span class="stat-value" id="st-best">–</span></div>
+        <div class="stat"><span class="stat-label">Current Distance</span><span class="stat-value" id="st-current">–</span></div>
+        <div class="stat"><span class="stat-label">States Explored</span><span class="stat-value" id="st-explored">–</span></div>
+        <div class="stat"><span class="stat-label">States Pruned</span><span class="stat-value" id="st-pruned">–</span></div>
+        <div class="stat"><span class="stat-label">Pruning Rate</span><span class="stat-value" id="st-prunerate">–</span></div>
+        <div class="stat"><span class="stat-label">Compute Time</span><span class="stat-value" id="st-compute">–</span></div>
+        <div class="stat"><span class="stat-label">Playback Steps</span><span class="stat-value" id="st-anim">–</span></div>
+        <div class="stat"><span class="stat-label">Time to First Tour</span><span class="stat-value" id="st-first-tour">–</span></div>
+        <div class="stat"><span class="stat-label">Optimality</span><span class="stat-value" id="st-optimality">–</span></div>
+        <div class="stat"><span class="stat-label">Tour Valid</span><span class="stat-value" id="st-valid">–</span></div>
+        <div class="stat"><span class="stat-label">Best Route</span><span class="stat-value route" id="st-route">–</span></div>
+      </div>
+      <p class="hint">“States explored” counts one meaningful operation per algorithm: a complete tour for Brute Force,
+        a DP state (mask, city) for Held–Karp, a search-tree node for Branch &amp; Bound, a generation for the Genetic
+        Algorithm, an iteration for Simulated Annealing. “Compute time” is pure algorithm time — animation delay is never
+        included. Pruning rate = pruned ÷ (explored + pruned).</p>
+    </div>
+
+    <!-- LOG -->
+    <div class="tab-page" id="tab-log">
+      <div class="log-head">
+        <h3>Algorithm Log <span class="hint" id="log-count"></span></h3>
+        <button id="btn-clear-log" class="btn btn-ghost btn-small">Clear log</button>
+      </div>
+      <div id="log" class="log" aria-live="polite"></div>
+    </div>
+
+    <!-- PSEUDOCODE -->
+    <div class="tab-page" id="tab-pseudo">
+      <div class="pseudo-grid">
+        <div class="panel card">
+          <h3>Pseudocode <span class="hint" id="pseudo-algo-name"></span></h3>
+          <div id="pseudo-box"></div>
+        </div>
+        <div class="panel card">
+          <h3>Current operation</h3>
+          <p id="pseudo-explain" class="pseudo-explain">Run an algorithm to see live execution highlighting.</p>
+          <h3 style="margin-top:14px">Variables</h3>
+          <div id="pseudo-vars"><p class="hint">No event selected.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEARCH TREE -->
+    <div class="tab-page" id="tab-tree">
+      <div class="panel card">
+        <div class="tree-head">
+          <h3>Branch &amp; Bound — Search Tree</h3>
+          <div class="row" style="margin:0">
+            <button id="tree-expand-all" class="btn btn-small btn-ghost">Expand all</button>
+            <button id="tree-collapse-all" class="btn btn-small btn-ghost">Collapse all</button>
+          </div>
+        </div>
+        <p class="hint" id="tree-note">Run Branch &amp; Bound to grow the search tree. The tree explorer is specific to Branch &amp; Bound — other algorithms don’t build a search tree.</p>
+        <svg id="tree-svg" viewBox="0 0 600 320" role="img" aria-label="Branch and bound search tree"></svg>
+        <div id="tree-detail"></div>
+      </div>
+    </div>
+
+    <!-- DP TABLE -->
+    <div class="tab-page" id="tab-dp">
+      <div class="panel card">
+        <h3>Held–Karp — DP Table</h3>
+        <p class="hint" id="dp-note">Run Held–Karp to fill the DP table. The table visualizer is specific to Held–Karp — other algorithms don’t memoize DP states.</p>
+        <div id="dp-box"></div>
+      </div>
+    </div>
+
+    <!-- COMPLEXITY ANALYSIS -->
+    <div class="tab-page" id="tab-complexity">
+      <div class="panel card" style="margin-bottom:16px">
+        <div id="deriv-box"></div>
+        <p class="hint">The derivation above describes the implementation that actually runs in this lab — switch algorithms to see its derivation.</p>
+      </div>
+      <div class="cx-grid">
+        <div class="panel card">
+          <h3>Tour Explosion</h3>
+          <div class="row">
+            <label class="field-label" for="cx-cities">Cities</label>
+            <input type="range" id="cx-cities" min="4" max="12" value="8">
+            <span class="cx-n" id="cx-n-label">8</span>
+          </div>
+          <p class="cx-formula">Possible tours (fixed start) = <strong>(n − 1)!</strong></p>
+          <table class="cx-table" id="cx-table"></table>
+        </div>
+        <div class="panel card">
+          <h3>Growth of Theoretical Operations</h3>
+          <div class="row">
+            <label class="check"><input type="checkbox" id="cx-measured" checked> <span>Overlay measured data (from Experiment Lab)</span></label>
+          </div>
+          <svg id="growth-chart" viewBox="0 0 640 360" role="img" aria-label="Complexity growth chart"></svg>
+          <div class="legend">
+            <span class="legend-item"><span class="swatch" style="background:#e5484d"></span> Brute Force · (n−1)!</span>
+            <span class="legend-item"><span class="swatch" style="background:#3e9b4f"></span> Held–Karp · n²·2ⁿ</span>
+            <span class="legend-item"><span class="swatch" style="background:#8e8e93"></span> Reference · n²</span>
+            <span class="legend-item"><span class="swatch" style="background:transparent;border:2px dotted #8b98a9"></span> Measured (dashed)</span>
+          </div>
+          <p class="hint">Log-scale y-axis. Solid curves are <em>theoretical operation counts</em>; dashed markers are
+            <em>measured states</em> from your experiment runs — real data, not a proof. Toggle them to see the gap between theory and practice.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPARE -->
+    <div class="tab-page" id="tab-compare">
+      <div class="panel card">
+        <h3>Synchronized Algorithm Comparison</h3>
+        <p class="hint">Select two or more algorithms. Each runs on the <em>same</em> graph and distance matrix (a frozen copy of the current problem). Compute time is measured separately from animation.</p>
+        <div class="cmp-select" id="cmp-select"></div>
+        <div class="row" style="margin-top:10px">
+          <button id="btn-cmp-run" class="btn btn-primary">Run Comparison</button>
+          <button id="btn-cmp-cancel" class="btn btn-ghost" disabled>Cancel</button>
+        </div>
+        <div class="exp-progress" id="cmp-progress" hidden>
+          <div class="exp-bar"><div class="exp-fill" id="cmp-fill"></div></div>
+          <span id="cmp-status">Running…</span>
+        </div>
+        <div id="cmp-results"></div>
+        <div id="cmp-playback" hidden>
+          <h3 style="margin:14px 0 8px">Synchronized playback</h3>
+          <div class="transport">
+            <button id="cmp-play" class="btn btn-small">▶ Play</button>
+            <button id="cmp-pause" class="btn btn-small">⏸ Pause</button>
+            <button id="cmp-step" class="btn btn-small">⏭ Step</button>
+            <span class="hint" id="cmp-step-label"></span>
+          </div>
+          <div class="cmp-views" id="cmp-views"></div>
+          <h3 style="margin:14px 0 8px">Best-cost race</h3>
+          <svg id="cmp-chart" viewBox="0 0 640 260" role="img" aria-label="Best cost over time chart"></svg>
+          <p class="hint">Each line tracks an algorithm’s incumbent tour cost as its event stream advances. Stepped in lockstep — one event per tick per algorithm.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPERIMENT LAB -->
+    <div class="tab-page" id="tab-experiment">
+      <div class="panel card">
+        <h3>Experiment Lab</h3>
+        <p class="hint">Repeated trials on fresh seeded instances. The same instance (same seed) is used for every algorithm in a trial, so comparisons are fair. Exact algorithms are capped at n ≤ 10.</p>
+        <div class="exp-controls">
+          <div class="row">
+            <label class="field-label" for="exp-structure">Structure</label>
+            <select id="exp-structure" class="select" style="max-width:170px">
+              <option value="uniform">Uniform random</option>
+              <option value="clustered">Clustered</option>
+              <option value="circular">Circular</option>
+              <option value="grid">Grid</option>
+              <option value="outliers">Outlier-heavy</option>
+            </select>
+            <label class="field-label" for="exp-start">Cities from</label>
+            <input type="number" id="exp-start" min="4" max="10" value="4">
+            <label class="field-label" for="exp-end">to</label>
+            <input type="number" id="exp-end" min="4" max="10" value="7">
+            <label class="field-label" for="exp-trials">Trials</label>
+            <input type="number" id="exp-trials" min="1" max="20" value="3">
+            <label class="field-label" for="exp-seed">Seed</label>
+            <input type="number" id="exp-seed" min="0" max="999999" value="1000">
+          </div>
+          <div class="cmp-select" id="exp-algos"></div>
+          <div class="row" style="margin-top:10px">
+            <button id="btn-experiment" class="btn btn-primary">Run Experiment</button>
+            <button id="btn-exp-cancel" class="btn btn-ghost" disabled>Cancel</button>
+            <button id="btn-exp-csv" class="btn btn-ghost" disabled>Export CSV</button>
+            <button id="btn-exp-json" class="btn btn-ghost" disabled>Export JSON</button>
+          </div>
+        </div>
+        <div class="exp-progress" id="exp-progress" hidden>
+          <div class="exp-bar"><div class="exp-fill" id="exp-fill"></div></div>
+          <span id="exp-status">Running…</span>
+        </div>
+        <div id="exp-results"></div>
+        <svg id="exp-chart" viewBox="0 0 640 300" role="img" aria-label="Experiment chart" hidden></svg>
+      </div>
+    </div>
+
+    <!-- LEARN MODE -->
+    <div class="tab-page" id="tab-learn">
+      <div id="lesson-list" class="lesson-list"></div>
+      <div id="lesson-view" hidden>
+        <button id="lesson-back" class="btn btn-small btn-ghost" style="margin-bottom:12px">← All lessons</button>
+        <div class="panel card">
+          <h3 id="lesson-title"></h3>
+          <p class="hint" id="lesson-goal"></p>
+          <div id="lesson-steps"></div>
+          <div class="row" style="margin-top:12px">
+            <button id="lesson-prev" class="btn btn-small">← Prev</button>
+            <button id="lesson-next" class="btn btn-small btn-primary">Next →</button>
+            <button id="lesson-restart" class="btn btn-small btn-ghost">↻ Restart lesson</button>
+          </div>
+          <div id="lesson-quiz"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORT -->
+    <div class="tab-page" id="tab-report">
+      <div class="panel card">
+        <h3>Experiment Report</h3>
+        <p class="hint">Exports the <em>actual</em> last run: graph, distance matrix, algorithm parameters, final tour, validation, statistics and complexity badge.</p>
+        <div id="report-summary"><p class="hint">Run an algorithm first — the report reflects the latest completed run.</p></div>
+        <div class="row" style="margin-top:10px">
+          <label class="field-label" for="report-observations">Observations</label>
+        </div>
+        <textarea id="report-observations" rows="3" placeholder="Your observations (included in the HTML report)…"></textarea>
+        <div class="row" style="margin-top:10px">
+          <button id="btn-report-json" class="btn" disabled>Download JSON</button>
+          <button id="btn-report-csv-events" class="btn" disabled>Download events CSV</button>
+          <button id="btn-report-html" class="btn btn-primary" disabled>Printable HTML report</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HOW IT WORKS -->
+    <div class="tab-page" id="tab-how">
+      <div class="how-grid">
+        <article class="panel card">
+          <h3>Brute Force — Why O(n!)?</h3>
+          <p>Fix the starting city (say <strong>A</strong>). Then count the choices for each next city:</p>
+          <ul class="steps">
+            <li>1st choice: <strong>n − 1</strong> cities</li>
+            <li>2nd choice: <strong>n − 2</strong> cities</li>
+            <li>3rd choice: <strong>n − 3</strong> cities</li>
+            <li>…</li>
+            <li>Last choice: <strong>1</strong> city</li>
+          </ul>
+          <p class="formula">(n−1) · (n−2) · … · 1 = (n−1)! possible tours</p>
+          <p>Every tour is generated, evaluated, and compared against the best so far.
+            Nothing is skipped — which is exactly why it becomes impractical so quickly.
+            See the full derivation in the <strong>Complexity Analysis</strong> tab.</p>
+        </article>
+        <article class="panel card">
+          <h3>Held–Karp — Why O(n²·2ⁿ)?</h3>
+          <p>Instead of re-solving the same subproblem many times, Held–Karp memoizes it.
+            A subproblem is a <strong>state</strong>:</p>
+          <p class="formula">dp[mask][i] = cheapest cost to start at A, visit exactly the cities in <em>mask</em>, and end at <em>i</em></p>
+          <ul class="steps">
+            <li>There are <strong>2ⁿ</strong> possible subsets (<em>masks</em>) of cities.</li>
+            <li>For each subset, we consider up to <strong>n</strong> ending cities <em>i</em>.</li>
+            <li>Each state tries transitions from up to <strong>n</strong> previous cities.</li>
+          </ul>
+          <p class="formula">2ⁿ subsets × n endings × n transitions = O(n²·2ⁿ)</p>
+          <p>DP never recomputes a state — repeated work in brute force becomes a single table lookup.
+            See the full derivation in the <strong>Complexity Analysis</strong> tab.</p>
+        </article>
+        <article class="panel card">
+          <h3>Branch &amp; Bound — Why can it be faster?</h3>
+          <p>It explores the same search tree as brute force, but it <strong>prunes</strong> branches
+            that provably cannot beat the best tour found so far.</p>
+          <p>For a partial route it computes a <strong>lower bound</strong>: the cheapest any
+            completion of this route could possibly be. If:</p>
+          <p class="formula">lower bound ≥ current best → <strong>PRUNE</strong></p>
+          <p>The lower bound in this visualizer = <em>cost so far</em> + the cheapest possible way to
+            leave every unvisited city (minimum outgoing edge), plus the cheapest return to the start.
+            No real completion can be cheaper than this, so pruning is always safe.</p>
+          <p><strong>Important:</strong> worst-case complexity is still exponential. Pruning helps on
+            typical instances, but a hostile instance can force it to explore nearly everything.</p>
+        </article>
+        <article class="panel card">
+          <h3>Heuristics &amp; approximations — what “no guarantee” means</h3>
+          <p><strong>Nearest Neighbor</strong>, <strong>2-opt</strong>, <strong>Genetic Algorithm</strong> and
+            <strong>Simulated Annealing</strong> return valid tours with <em>no optimality guarantee</em> —
+            the lab never labels their answers “optimal”. The <strong>MST double-tree</strong> method is stronger:
+            on metric TSP it is <em>proven</em> to return a tour ≤ 2·OPT.</p>
+          <p>An approximation guarantee is a proven bound on answer quality — weaker than an optimality proof,
+            stronger than hope. Try Learn Mode demo 6 to feel the difference.</p>
+        </article>
+      </div>
+    </div>
+
+  </section>
+
+  <footer class="footer">
+    <p>TSP Visualizer · Design and Analysis of Algorithms laboratory · All statistics are measured from the actual implementations.</p>
+  </footer>
+
+  <!-- Scripts load in dependency order; each file attaches to the shared TSP namespace.
+       Plain (non-module) scripts are used on purpose so the app also runs from file:// -->
+  <script src="js/tsp.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/algorithms.js"></script>
+  <script src="js/pseudocode.js"></script>
+  <script src="js/derivations.js"></script>
+  <script src="js/visualization.js"></script>
+  <script src="js/treeview.js"></script>
+  <script src="js/dptable.js"></script>
+  <script src="js/complexity.js"></script>
+  <script src="js/learn.js"></script>
+  <script src="js/report.js"></script>
+  <script src="js/liveintel.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
